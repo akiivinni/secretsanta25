@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Secret Santa — QR Reveal (PDF)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root{
+      --card-bg: linear-gradient(180deg,#fff8f0,#fff0f5);
+      --accent: #c62828;
+      --accent-dark: #8b1b1b;
+      --green: #1b5e20;
+    }
+    body{
+      margin:0;
+      min-height:100vh;
+      background: radial-gradient(ellipse at bottom, #0b2a3a 0%, #031018 60%), linear-gradient(#071026, #071026);
+      color:#fff;
+      font-family: "Segoe UI", Roboto, Arial, sans-serif;
+      padding:32px;
+      box-sizing:border-box;
+      overflow-x:hidden;
+    }
+    header{ display:flex; align-items:center; gap:16px; margin-bottom:18px; }
+    .logo { width:64px;height:64px;border-radius:14px; background: linear-gradient(45deg,#ffb347,#ffcc33); display:flex;align-items:center;justify-content:center; box-shadow: 0 6px 20px rgba(0,0,0,0.35); transform: rotate(-8deg); }
+    h1{ margin:0; font-size:24px; letter-spacing:0.5px;}
+    p.lead { margin:6px 0 18px 0; color: #d6edf6; opacity:0.95 }
+    .snow { position:fixed; left:0; right:0; top:0; bottom:0; pointer-events:none; z-index:0; background-image: radial-gradient(circle at 10% 20%, rgba(255,255,255,0.06) 0 1px, transparent 1px), radial-gradient(circle at 70% 60%, rgba(255,255,255,0.04) 0 1px, transparent 1px); opacity:0.9; }
+    .cards { position:relative; z-index:1; display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:18px; align-items:start; }
+    .card { background: var(--card-bg); color: #2b2b2b; border-radius:14px; padding:14px; box-shadow: 0 8px 30px rgba(2,8,18,0.5); transform-origin:center; overflow:hidden; border: 1px solid rgba(255,255,255,0.06); position:relative; transition: transform .22s ease, box-shadow .22s ease; animation: popIn .45s ease; }
+    @keyframes popIn { from { transform: translateY(8px) scale(.98); opacity:0 } to { transform: translateY(0) scale(1); opacity:1 } }
+    .card:hover { transform: translateY(-6px) scale(1.01); box-shadow: 0 18px 40px rgba(2,8,18,0.7); }
+    .festive-top { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
+    .title { font-weight:700; font-size:16px; color:var(--accent-dark); display:flex; align-items:center; gap:8px; }
+    .title .emoji { font-size:20px; transform:translateY(-1px) }
+    .decoration { width:56px;height:56px;border-radius:8px; display:flex; align-items:center; justify-content:center; background: linear-gradient(135deg,#e8f5e9,#fff); box-shadow: inset 0 1px 0 rgba(255,255,255,0.6); }
+    input.giftee { width:100%; padding:10px 12px; font-size:14px; border-radius:8px; border:1px solid rgba(0,0,0,0.08); box-sizing:border-box; }
+    .controls { display:flex; gap:8px; margin-top:10px; align-items:center; }
+    button.download { background: linear-gradient(180deg,var(--accent),var(--accent-dark)); color:white;border:none;padding:8px 12px;border-radius:8px; cursor:pointer; box-shadow: 0 6px 14px rgba(198,40,40,0.24); }
+    button.download:active { transform: translateY(1px) }
+    .msg { font-size:13px; margin-top:8px; color:#7b1b1b; display:none; }
+    .removing { animation: fadeOut .6s ease forwards; }
+    @keyframes fadeOut { to { opacity:0; transform: translateY(-10px) scale(.98); height:0; margin:0; padding:0; } }
+    .christmas-ornament { position:absolute; right:-28px; top:-28px; transform:rotate(12deg); opacity:0.95; }
+    footer { margin-top:22px; color:#cfeef7; font-size:13px; }
+    @media (max-width:520px){ header{gap:10px} .logo{width:52px;height:52px} .cards{grid-template-columns:1fr} }
+  </style>
+</head>
+<body>
+  <div class="snow" aria-hidden="true"></div>
+
+  <header>
+    <div class="logo" aria-hidden="true">🎅</div>
+    <div>
+      <h1>Secret Santa — Holiday Draw</h1>
+      <p class="lead">Enter your name and download your personalised Christmas greeting!</p>
+    </div>
+  </header>
+
+  <main>
+    <div class="cards" id="cards"></div>
+    <footer>Cards remove after successful download. Enjoy the jingle! 🎶</footer>
+  </main>
+
+  <!-- libraries (loaded before our script) -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+
+<script>
+/* ---------------------------
+   Data / helpers (UI logic)
+   --------------------------- */
+
+const participants = ["Pooja","Sumanath","Harish","Ganeshan","Boopathi","Prachi","Sai","Pavana","Yugojyoti","Pradeep","Sithun","Sayantan","Vidyashree","Supradeep","Sanjukta","Nithin","Usha","Harika","Abdullah","Varuni","Renjusha","Akhila"];
+let availableGiftees = [...participants];
+
+const festiveTitles = [
+  "Ho Ho Hold On… Plot Twist Inside!",
+  "Ha Ha… Santa’s laughing at you",
+  "Ho ho ho, the clue is tiny… your surprise is sweet and shiny!",
+  "Jingle All the Way… or Until Snacks Finish",
+  "Ho Ho… Mystery will arrive soon!",
+  "Cookies Missing? It Wasn’t Me!",
+  "Secret surprise unlocked. Don’t scream",
+  "All I Want for Christmas… Is a Nap",
+  "Silent Night… Until the Karaoke Starts.",
+  "All I Want for Christmas… Is Unlimited Snacks",
+  "Naughty List… Ho Ho, Santa saw everything.!",
+  "Snow much fun… Ha Ha, until someone slips on candy canes.",
+  "Snowflakes fall, secrets call!",
+  "Merry Crisis & Happy New Fear!",
+  "Ho ho hush… your Santa’s a mystery",
+  "Deck the Halls… and the Dance Floor.",
+  "Santa’s list… Ha Ha Ho Ho, I bribed him with cookies.",
+  "No refunds. Santa policy strictly applicable",
+  "Holiday magic delivered—handle with caution",
+  "Secret Santa: Unwrap the Mystery",
+  "Ready? Christmas surprise loading now",
+  "Ta-da… Unexpected gift detected"
+];
+
+function shuffle(arr){ return arr.sort(()=>0.5-Math.random()); }
+let shuffledTitles = shuffle([...festiveTitles]);
+while(shuffledTitles.length < participants.length) shuffledTitles = shuffledTitles.concat(shuffle([...festiveTitles]));
+
+/* Small SVG placeholders */
+function svgTree(){ return `<svg width="44" height="44" viewBox="0 0 44 44" xmlns="http://www.w3.org/2000/svg"><circle cx="22" cy="22" r="20" fill="#2e7d32"/></svg>`; }
+function svgOrnament(){ return `<svg width="70" height="70" viewBox="0 0 70 70" xmlns="http://www.w3.org/2000/svg"><circle cx="35" cy="35" r="30" fill="#d32f2f"/></svg>`; }
+
+/* Build cards */
+const container = document.getElementById('cards');
+participants.forEach((name, index) => {
+  const title = shuffledTitles[index];
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.id = 'card'+index;
+  card.innerHTML = `
+    <div class="festive-top">
+      <div class="title"><span class="emoji">🎄</span><span>${title}</span></div>
+      <div class="decoration">${svgTree()}</div>
+    </div>
+
+    <div>
+      <input class="giftee" id="giftee${index}" placeholder="Enter your full name" autocomplete="off" />
+      <div class="controls">
+        <button class="download" onclick="handleDownload(${index})">Download PDF</button>
+      </div>
+      <div class="msg" id="msg${index}"></div>
+    </div>
+
+    <div class="christmas-ornament">${svgOrnament()}</div>
+  `;
+  container.appendChild(card);
+});
+
+/* Helpers */
+function findName(input){
+  if(!input) return null;
+  const t = input.trim().toLowerCase();
+  return participants.find(p => p.toLowerCase() === t) || null;
+}
+function pickGiftee(exclude){
+  let pool = availableGiftees.filter(n => n.toLowerCase() !== exclude.toLowerCase());
+  if(!pool.length){
+    availableGiftees = participants.filter(n => n.toLowerCase() !== exclude.toLowerCase());
+    pool = [...availableGiftees];
+  }
+  const pick = pool[Math.floor(Math.random()*pool.length)];
+  availableGiftees = availableGiftees.filter(n => n !== pick);
+  return pick;
+}
+
+/* ---------------------------
+   PDF + QR generation logic
+   --------------------------- */
+
+/* jsPDF access */
+const { jsPDF } = window.jspdf;
+
+/* QR generator Promise */
+function makeQrDataUrl(text, size = 360){
+  return QRCode.toDataURL(text, { errorCorrectionLevel: 'H', margin:1, width: size });
+}
+
+/* Create PDF blob (400 x 600 pts) */
+async function createGreetingPdfBlob(gifter, giftee){
+  // Secret message inside QR (Option B)
+  const secretText = `🎄 Secret Santa Reveal 🎄\nYou are gifting: ${giftee}`;
+
+  // Generate QR image data URL (PNG)
+  const qrDataUrl = await makeQrDataUrl(secretText, 360);
+
+  // create jsPDF doc in 'pt' units
+  const doc = new jsPDF({ unit: 'pt', format: [400, 600] });
+
+  // heading
+  doc.setFont('Helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.setTextColor(30,30,30);
+  doc.text("Merry Christmas", 200, 60, { align: 'center' });
+
+  // gifter
+  doc.setFontSize(13);
+  doc.setFont('Helvetica', 'normal');
+  doc.text(`Hi ${gifter}`, 200, 95, { align: 'center' });
+
+  //jingles
+ doc.setFont('Helvetica', 'italic');
+  doc.setFontSize(8);
+  doc.setTextColor(255,0,0);
+  doc.text("Who will I gift, who gifts to me?  ", 200, 130, { align: 'center' });
+doc.text("The magic’s wrapped in mystery.", 200, 140, { align: 'center' });
+doc.text(" Happiness shared, the joy is clear, ", 200, 150, { align: 'center' });
+doc.text("Merry Christmas and festive cheer!", 200, 160, { align: 'center' });
+ //doc.text("With jingles in the air and Christmas magic", 200, 130, { align: 'center' });
+//doc.text("everywhere, your Secret Santa brings a small", 200, 140, { align: 'center' });
+//doc.text("surprise wrapped with joy, sprinkled with cheer,", 200, 150, { align: 'center' });
+//doc.text("and delivered with a warm festive smile.", 200, 160, { align: 'center' });
+  // instruction
+  doc.setFontSize(10);
+  doc.setTextColor(100,100,100);
+  doc.text("Tap into the holiday magic—scan to reveal who you’re gifting!", 200, 190, { align: 'center' });
+
+  // add QR centered (draw 220x220)
+  const qrSize = 100;
+  const qrX = (400 - qrSize) / 2;
+  const qrY = 200;
+  doc.addImage(qrDataUrl, 'PNG', qrX, qrY, qrSize, qrSize);
+doc.setFont('Helvetica', 'italic');
+  doc.setFontSize(8);
+  doc.setTextColor(50,205,50);
+ 
+ doc.text("With jingles in the air and Christmas magic", 200, 320, { align: 'center' });
+doc.text("everywhere, your Secret Santa brings a small", 200, 330, { align: 'center' });
+doc.text("surprise wrapped with joy, sprinkled with cheer,", 200, 340, { align: 'center' });
+doc.text("and delivered with a warm festive smile.", 200, 350, { align: 'center' });
+  // footer
+  doc.setFontSize(10);
+  doc.setTextColor(110,110,110);
+  doc.text("Happy Secret Santa! — Keep it secret, keep it fun.", 200, 460, { align: 'center' });
+  doc.text("From-GlobalTeam", 200, 490, { align: 'right' });
+
+  // return blob
+  return doc.output('blob');
+}
+
+/* Main handler */
+async function handleDownload(i){
+  const msg = document.getElementById('msg'+i);
+  msg.style.display = 'none';
+
+  const entered = document.getElementById('giftee'+i).value;
+  const gifter = findName(entered);
+  if(!gifter){
+    msg.style.display = 'block';
+    msg.textContent = 'Invalid name. Please enter your exact name.';
+    return;
+  }
+
+  const giftee = pickGiftee(gifter);
+
+  try {
+    const pdfBlob = await createGreetingPdfBlob(gifter, giftee);
+
+    // Use FileSaver.saveAs to trigger download (most browsers will download)
+    saveAs(pdfBlob, `SecretSanta_${gifter}.pdf`);
+
+    // animate removal
+    const card = document.getElementById('card'+i);
+    if(card){
+      card.classList.add('removing');
+      setTimeout(()=>card.remove(),650);
+    }
+
+    showToast('PDF downloaded 🎉');
+  } catch(err){
+    console.error('Error creating/downloading PDF:', err);
+    msg.style.display = 'block';
+    msg.textContent = 'Failed to generate download. See console for details.';
+  }
+}
+
+/* Toast helper */
+function showToast(txt){
+  const d = document.createElement('div');
+  d.textContent = txt;
+  d.style.position = 'fixed';
+  d.style.left = '50%';
+  d.style.bottom = '28px';
+  d.style.transform = 'translateX(-50%)';
+  d.style.background = 'linear-gradient(90deg,#2e7d32,#c62828)';
+  d.style.color = 'white';
+  d.style.padding = '10px 18px';
+  d.style.borderRadius = '20px';
+  d.style.zIndex = 9999;
+  d.style.fontWeight = 700;
+  document.body.appendChild(d);
+  setTimeout(()=> d.style.opacity='0',2000);
+  setTimeout(()=> d.remove(),2600);
+}
+</script>
+</body>
+</html>
